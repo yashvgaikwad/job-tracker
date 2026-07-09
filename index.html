@@ -205,18 +205,8 @@ textarea { resize:vertical; min-height:100px; font-family:'SF Mono','Fira Code',
    <div class="setup-title">Daily Job Tracker 🎯</div>
    <div class="setup-sub">Set this up once. Every time you open this page it auto-scans LinkedIn, Indeed &amp; Glassdoor across 5 job titles and scores results against your resume.</div>
    <div class="cors-warn">
-    <strong>⚠️ Host this on GitHub Pages first — it takes 3 minutes</strong>
-    API calls won't work when opening this file directly from your desktop (browser CORS restriction). Scroll to "Deploy to GitHub Pages" in Settings after setup, or see the instructions inside the drawer.
-   </div>
-   <div class="fg">
-    <label>Apify API Key</label>
-    <input id="s-apify" type="password" placeholder="apify_api_xxxxxxxx">
-    <div class="hint">Get it free at <a href="https://console.apify.com/account/integrations" target="_blank">console.apify.com</a> → Integrations → Personal API tokens</div>
-   </div>
-   <div class="fg">
-    <label>Anthropic API Key</label>
-    <input id="s-claude" type="password" placeholder="sk-ant-xxxx">
-    <div class="hint">Get it at <a href="https://console.anthropic.com/settings/api-keys" target="_blank">console.anthropic.com</a> · Scoring 20 jobs costs ~$0.02</div>
+    <strong>ℹ️ This site talks to your private backend</strong>
+    Your API keys live server-side in a Cloudflare Worker, not in this page. If you haven't deployed the Worker yet, see DEPLOY.md before continuing.
    </div>
    <hr class="divr">
    <div class="fg2">
@@ -227,6 +217,7 @@ textarea { resize:vertical; min-height:100px; font-family:'SF Mono','Fira Code',
     <div class="fg">
      <label>Days back to search</label>
      <select id="s-days">
+      <option value="1">Past 24 hours</option>
       <option value="3" selected>Past 3 days</option>
       <option value="7">Past week</option>
       <option value="14">Past 2 weeks</option>
@@ -288,15 +279,6 @@ textarea { resize:vertical; min-height:100px; font-family:'SF Mono','Fira Code',
 <div class="drawer" id="drawer">
  <button class="drawer-close" onclick="closeDrawer()">✕</button>
  <div class="drawer-title">⚙ Settings</div>
- <div class="fg">
-  <label>Apify API Key</label>
-  <input id="d-apify" type="password" placeholder="apify_api_...">
- </div>
- <div class="fg">
-  <label>Anthropic API Key</label>
-  <input id="d-claude" type="password" placeholder="sk-ant-...">
- </div>
- <hr class="divr">
  <div class="fg2">
   <div class="fg">
    <label>Location</label>
@@ -305,6 +287,7 @@ textarea { resize:vertical; min-height:100px; font-family:'SF Mono','Fira Code',
   <div class="fg">
    <label>Days back</label>
    <select id="d-days">
+    <option value="1">Past 24 hours</option>
     <option value="3">Past 3 days</option>
     <option value="7">Past week</option>
     <option value="14">Past 2 weeks</option>
@@ -331,13 +314,14 @@ textarea { resize:vertical; min-height:100px; font-family:'SF Mono','Fira Code',
  </div>
  <hr class="divr" style="margin-top:20px">
  <div class="deploy-box">
-  <h3>🚀 Deploy to GitHub Pages (fixes CORS error)</h3>
+  <h3>🚀 Deploy (one-time, ~10 min)</h3>
   <ol class="deploy-steps">
+   <li>Deploy the <strong>Worker backend</strong> first (holds your API keys) — full steps in <code>DEPLOY.md</code></li>
+   <li>Paste your Worker URL into the <code>WORKER_URL</code> constant near the top of this file's &lt;script&gt;</li>
    <li>Go to <a href="https://github.com/new" target="_blank">github.com/new</a> — create a <strong>public</strong> repo named <code>job-tracker</code></li>
-   <li>Click <strong>uploading an existing file</strong> → drag this HTML file in → rename it <code>index.html</code> → Commit</li>
-   <li>Go to repo <strong>Settings → Pages → Source → Deploy from branch → main → / (root)</strong> → Save</li>
-   <li>Your live URL (visit &amp; bookmark this): <div class="code-box">https://YOUR_USERNAME.github.io/job-tracker</div></li>
-   <li>All API calls now work. Done ✓</li>
+   <li>Upload this HTML file → rename it <code>index.html</code> → Commit</li>
+   <li>Repo <strong>Settings → Pages → Source → Deploy from branch → main → / (root)</strong> → Save</li>
+   <li>Your live URL: <div class="code-box">https://YOUR_USERNAME.github.io/job-tracker</div></li>
   </ol>
  </div>
 </div>
@@ -349,12 +333,24 @@ textarea { resize:vertical; min-height:100px; font-family:'SF Mono','Fira Code',
 const K = { CFG:'jt2_cfg', JOBS:'jt2_jobs_', TS:'jt2_ts_' };
 const REFRESH_HRS = 24;
 
+// ─── Your Cloudflare Worker backend (holds the real API keys) ───
+// After deploying (see DEPLOY.md), paste the URL Wrangler gives you here.
+const WORKER_URL = 'https://delicate-frog-6ce3.yashvgaikwad99.workers.dev/';
+// Optional: only needed if you set an APP_SECRET on the Worker too.
+const APP_SECRET = 'yash';
+function workerHeaders() {
+  const h = { 'Content-Type':'application/json' };
+  if (APP_SECRET) h['X-App-Secret'] = APP_SECRET;
+  return h;
+}
+
 const BOARDS = {
   linkedin: {
     id:'linkedin', name:'LinkedIn', tagClass:'tag-li',
     actor:'curious_coder~linkedin-jobs-scraper',
     buildInput(q, loc, days) {
-      const tpr = days <= 3 ? 'r259200' : days <= 7 ? 'r604800' : 'r1209600';
+      const d = parseInt(days);
+      const tpr = d <= 1 ? 'r86400' : d <= 3 ? 'r259200' : d <= 7 ? 'r604800' : 'r1209600';
       return {
         urls:[`https://www.linkedin.com/jobs/search/?keywords=${enc(q)}&location=${enc(loc)}&f_TPR=${tpr}&position=1&pageNum=0`],
         count:15, scrapeCompany:false
@@ -370,7 +366,8 @@ const BOARDS = {
     id:'indeed', name:'Indeed', tagClass:'tag-in',
     actor:'valig~indeed-jobs-scraper',
     buildInput(q, loc, days) {
-      const dp = days<=3?'3days':days<=7?'1week':'2weeks';
+      const d = parseInt(days);
+      const dp = d<=1?'1':d<=3?'3days':d<=7?'1week':'2weeks';
       return { title:q, location:loc, limit:15, datePosted:dp, country:'us' };
     },
     map(item) {
@@ -517,38 +514,39 @@ function updateHdrMeta() {
 // ═══════════════════════════════════════════════
 // APIFY
 // ═══════════════════════════════════════════════
-async function apifyStart(apiKey, actor, input) {
-  const res = await fetch(`https://api.apify.com/v2/acts/${actor}/runs?token=${apiKey}`, {
-    method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(input)
+async function apifyStart(actor, input) {
+  const res = await fetch(`${WORKER_URL}/apify-start`, {
+    method:'POST', headers:workerHeaders(), body:JSON.stringify({actor, input})
   });
-  if(!res.ok) { const t=await res.text(); throw new Error(`${actor} start failed (${res.status}): ${t.slice(0,120)}`); }
   const d = await res.json();
-  return { runId:d.data.id, datasetId:d.data.defaultDatasetId };
+  if(!res.ok) throw new Error(d.error || `${actor} start failed (${res.status})`);
+  return { runId:d.runId, datasetId:d.datasetId };
 }
-async function apifyPoll(apiKey, runId, onTick) {
+async function apifyPoll(runId, onTick) {
   for(let i=0;i<60;i++) {
     await wait(5000);
-    const res = await fetch(`https://api.apify.com/v2/actor-runs/${runId}?token=${apiKey}`);
-    if(!res.ok) throw new Error(`Poll failed (${res.status})`);
-    const status = (await res.json()).data.status;
-    if(status==='SUCCEEDED') return;
-    if(['FAILED','ABORTED','TIMED-OUT'].includes(status)) throw new Error(`Run ${status}`);
+    const res = await fetch(`${WORKER_URL}/apify-status?runId=${runId}`, { headers:workerHeaders() });
+    const d = await res.json();
+    if(!res.ok) throw new Error(d.error || `Poll failed (${res.status})`);
+    if(d.status==='SUCCEEDED') return;
+    if(['FAILED','ABORTED','TIMED-OUT'].includes(d.status)) throw new Error(`Run ${d.status}`);
     if(onTick) onTick(i);
   }
   throw new Error('Apify polling timed out (>5 min)');
 }
-async function apifyFetch(apiKey, datasetId) {
-  const res = await fetch(`https://api.apify.com/v2/datasets/${datasetId}/items?token=${apiKey}&limit=20`);
-  if(!res.ok) throw new Error(`Dataset fetch failed (${res.status})`);
-  return await res.json();
+async function apifyFetch(datasetId) {
+  const res = await fetch(`${WORKER_URL}/apify-dataset?datasetId=${datasetId}`, { headers:workerHeaders() });
+  const d = await res.json();
+  if(!res.ok) throw new Error(d.error || `Dataset fetch failed (${res.status})`);
+  return d;
 }
 
 // ─── scrape one board ───
 async function scrapeBoard(board, cfg, kw, onTick) {
   const input = board.buildInput(kw, cfg.loc, cfg.days||3);
-  const { runId, datasetId } = await apifyStart(cfg.apify, board.actor, input);
-  await apifyPoll(cfg.apify, runId, onTick);
-  const raw = await apifyFetch(cfg.apify, datasetId);
+  const { runId, datasetId } = await apifyStart(board.actor, input);
+  await apifyPoll(runId, onTick);
+  const raw = await apifyFetch(datasetId);
   return (raw||[]).map(item => board.map(item)).filter(j => j.title && j.company);
 }
 
@@ -561,38 +559,13 @@ async function scoreAll(cfg, jobs) {
     source:j.source, desc:(j.desc||'').slice(0,600)
   }));
 
-  const res = await fetch('https://api.anthropic.com/v1/messages',{
-    method:'POST',
-    headers:{
-      'Content-Type':'application/json',
-      'x-api-key':cfg.claude,
-      'anthropic-version':'2023-06-01',
-      'anthropic-dangerous-direct-browser-access':'true'
-    },
-    body:JSON.stringify({
-      model:'claude-sonnet-4-6', max_tokens:4096,
-      messages:[{role:'user',content:`You are a resume-to-job-fit analyst. Score each job for this candidate.
-
-RESUME:
-${cfg.resume}
-
-JOBS (JSON):
-${JSON.stringify(slim)}
-
-Scoring rubric (1–10 integer):
-• Keyword overlap: skills/tools/JD responsibilities found in resume
-• Seniority match: candidate has ~5 years experience (2021–now)
-• Domain relevance: healthcare/public health/BI=high; unrelated=low
-• 4-second recruiter skim: would they shortlist instantly?
-
-Return ONLY a raw JSON array (no markdown, no extra text):
-[{"i":<index>,"score":<1-10>,"reason":"<≤20 words>","hm":"<LinkedIn search string like: \\"Director Data Analytics\\" \\"CompanyName\\" \\"City\\">","stretch":<true if seniority stretch>,"skip":<true if score<6>,"skipReason":"<one line or null>"}]`}]
-    })
+  const res = await fetch(`${WORKER_URL}/score`, {
+    method:'POST', headers:workerHeaders(),
+    body:JSON.stringify({ resume:cfg.resume, jobs:slim })
   });
-  if(!res.ok) throw new Error(`Anthropic error (${res.status}): ${(await res.text()).slice(0,120)}`);
   const d = await res.json();
-  const raw = d.content.map(b=>b.text||'').join('').replace(/```json|```/g,'').trim();
-  return JSON.parse(raw);
+  if(!res.ok) throw new Error(d.error || `Scoring failed (${res.status})`);
+  return d;
 }
 
 // ═══════════════════════════════════════════════
@@ -601,7 +574,7 @@ Return ONLY a raw JSON array (no markdown, no extra text):
 async function runPipeline(tabId) {
   if(isRunning){ toast('Already running, please wait','err'); return; }
   const cfg = getCfg();
-  if(!cfg){ toast('Set up your API keys first','err'); return; }
+  if(!cfg){ toast('Complete setup first','err'); return; }
 
   const tab = TABS.find(t=>t.id===tabId)||TABS[0];
   const activeBoardIds = cfg.boards||['linkedin','indeed','glassdoor'];
@@ -623,7 +596,7 @@ async function runPipeline(tabId) {
     prog(8, `Firing ${activeBoards.length} scrapers in parallel…`, 1);
 
     const boardRuns = await Promise.allSettled(
-      activeBoards.map(b => apifyStart(cfg.apify, b.actor, b.buildInput(tab.kw, cfg.loc, cfg.days||3)))
+      activeBoards.map(b => apifyStart(b.actor, b.buildInput(tab.kw, cfg.loc, cfg.days||3)))
     );
 
     const running = [];
@@ -636,7 +609,7 @@ async function runPipeline(tabId) {
     prog(15, `Polling ${running.length} scraper(s)…`, 1);
     let elapsed = 0;
     await Promise.allSettled(
-      running.map(r => apifyPoll(cfg.apify, r.runId, (i) => {
+      running.map(r => apifyPoll(r.runId, (i) => {
         elapsed = Math.max(elapsed, i*5);
         prog(15+Math.min(elapsed*0.7,40), `Scraping ${boardLabel}… (~${elapsed}s)`, 1);
       }))
@@ -645,7 +618,7 @@ async function runPipeline(tabId) {
     // ── Step 3: fetch datasets ──
     prog(60, 'Fetching results…', 2);
     const fetchResults = await Promise.allSettled(
-      running.map(r => apifyFetch(cfg.apify, r.datasetId).then(raw =>
+      running.map(r => apifyFetch(r.datasetId).then(raw =>
         (raw||[]).map(item=>r.board.map(item)).filter(j=>j.title&&j.company)
       ))
     );
@@ -836,15 +809,12 @@ function copyHM(el) {
 // SETUP
 // ═══════════════════════════════════════════════
 function saveSetup() {
-  const apify = document.getElementById('s-apify').value.trim();
-  const claude= document.getElementById('s-claude').value.trim();
   const loc   = document.getElementById('s-loc').value.trim()||'Irvine, CA';
   const days  = document.getElementById('s-days').value;
   const resume= document.getElementById('s-resume').value.trim()||DEFAULT_RESUME;
   const boards= getActiveBoardIds('s-boards');
-  if(!apify||!claude){ toast('Both API keys are required','err'); return; }
   if(!boards.length){ toast('Select at least one job board','err'); return; }
-  save(K.CFG,{apify,claude,loc,days,resume,boards});
+  save(K.CFG,{loc,days,resume,boards});
   document.getElementById('setup-screen').style.display='none';
   document.getElementById('dashboard').style.display='block';
   initDashboard();
@@ -856,8 +826,6 @@ function saveSetup() {
 // ═══════════════════════════════════════════════
 function openDrawer() {
   const cfg=getCfg()||{};
-  document.getElementById('d-apify').value = cfg.apify||'';
-  document.getElementById('d-claude').value= cfg.claude||'';
   document.getElementById('d-loc').value   = cfg.loc||'Irvine, CA';
   document.getElementById('d-days').value  = cfg.days||'3';
   document.getElementById('d-resume').value= cfg.resume||DEFAULT_RESUME;
@@ -871,14 +839,12 @@ function closeDrawer() {
 }
 function saveDrawer() {
   const cfg={
-    apify : document.getElementById('d-apify').value.trim(),
-    claude: document.getElementById('d-claude').value.trim(),
     loc   : document.getElementById('d-loc').value.trim()||'Irvine, CA',
     days  : document.getElementById('d-days').value,
     resume: document.getElementById('d-resume').value.trim()||DEFAULT_RESUME,
     boards: getActiveBoardIds('d-boards'),
   };
-  if(!cfg.apify||!cfg.claude){ toast('Both API keys required','err'); return; }
+  if(!cfg.boards.length){ toast('Select at least one job board','err'); return; }
   save(K.CFG,cfg); closeDrawer(); toast('Settings saved ✓');
 }
 async function refreshAll() {
@@ -892,7 +858,7 @@ async function refreshAll() {
 }
 function refreshActive() { runPipeline(activeTabId); }
 function nuke() {
-  if(!confirm('Reset everything? Clears API keys, resume, and all cached results.')) return;
+  if(!confirm('Reset everything? Clears your resume, settings, and all cached results.')) return;
   localStorage.clear(); location.reload();
 }
 
