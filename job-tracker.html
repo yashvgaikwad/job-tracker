@@ -1,0 +1,959 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Daily Job Tracker — Yash</title>
+<style>
+:root {
+  --bg:      #0b0e14;
+  --surf:    #131720;
+  --card:    #181d2a;
+  --card2:   #1e2436;
+  --bdr:     #252d40;
+  --bdr2:    #303a52;
+  --acc:     #5b8dee;
+  --acc2:    #4070d0;
+  --green:   #22c55e;
+  --yellow:  #eab308;
+  --red:     #ef4444;
+  --txt:     #dde3f0;
+  --muted:   #7a8499;
+  --muted2:  #525c72;
+  --r: 10px; --rs: 6px;
+}
+*,*::before,*::after { box-sizing:border-box; margin:0; padding:0; }
+body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif; background:var(--bg); color:var(--txt); min-height:100vh; font-size:14px; line-height:1.5; }
+a { color:inherit; text-decoration:none; }
+
+/* ─── HEADER ─── */
+.hdr { position:sticky; top:0; z-index:90; background:var(--surf); border-bottom:1px solid var(--bdr); padding:0 24px; height:52px; display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.hdr-logo { font-size:16px; font-weight:700; color:var(--acc); }
+.hdr-meta { font-size:12px; color:var(--muted); }
+.hdr-r { display:flex; gap:8px; }
+
+/* ─── TABS ─── */
+.tab-bar { background:var(--surf); border-bottom:1px solid var(--bdr); padding:0 24px; display:flex; gap:4px; overflow-x:auto; scrollbar-width:none; }
+.tab-bar::-webkit-scrollbar { display:none; }
+.tab-btn { padding:12px 16px; font-size:13px; font-weight:500; color:var(--muted); border:none; background:none; cursor:pointer; border-bottom:2px solid transparent; white-space:nowrap; transition:color .15s,border-color .15s; font-family:inherit; display:flex; align-items:center; gap:6px; }
+.tab-btn:hover { color:var(--txt); }
+.tab-btn.active { color:var(--acc); border-bottom-color:var(--acc); }
+.tab-badge { background:var(--card2); color:var(--muted); font-size:10px; padding:1px 6px; border-radius:10px; font-weight:600; }
+.tab-badge.has-jobs { background:rgba(91,141,238,.15); color:var(--acc); }
+
+/* ─── BUTTONS ─── */
+.btn { display:inline-flex; align-items:center; gap:6px; padding:7px 14px; border-radius:var(--rs); border:1px solid var(--bdr2); cursor:pointer; font-size:13px; font-weight:500; font-family:inherit; transition:all .15s; white-space:nowrap; }
+.btn-p { background:var(--acc); color:#fff; border-color:var(--acc); }
+.btn-p:hover { background:var(--acc2); border-color:var(--acc2); }
+.btn-g { background:transparent; color:var(--txt); }
+.btn-g:hover { background:var(--bdr); }
+.btn-d { background:transparent; color:var(--red); border-color:var(--red); }
+.btn-d:hover { background:rgba(239,68,68,.1); }
+.btn:disabled { opacity:.4; cursor:not-allowed; }
+
+/* ─── MAIN ─── */
+.main { max-width:940px; margin:0 auto; padding:28px 24px 60px; }
+
+/* ─── SETUP ─── */
+.setup-wrap { max-width:580px; margin:50px auto; padding:0 20px; }
+.setup-card { background:var(--card); border:1px solid var(--bdr); border-radius:var(--r); padding:32px; }
+.setup-ey { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:var(--acc); margin-bottom:6px; }
+.setup-title { font-size:22px; font-weight:700; margin-bottom:6px; }
+.setup-sub { color:var(--muted); font-size:13px; margin-bottom:24px; line-height:1.65; }
+.cors-warn { background:rgba(234,179,8,.08); border:1px solid rgba(234,179,8,.25); border-radius:var(--rs); padding:12px 14px; font-size:12.5px; color:var(--yellow); margin-bottom:22px; line-height:1.6; }
+.cors-warn strong { display:block; margin-bottom:3px; }
+.divr { border:none; border-top:1px solid var(--bdr); margin:20px 0; }
+
+/* ─── FORM ─── */
+.fg { margin-bottom:16px; }
+.fg2 { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+label { display:block; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); margin-bottom:5px; }
+input,textarea,select { width:100%; background:var(--bg); border:1px solid var(--bdr2); border-radius:var(--rs); padding:9px 12px; color:var(--txt); font-size:13px; font-family:inherit; outline:none; transition:border-color .15s; }
+input:focus,textarea:focus { border-color:var(--acc); }
+textarea { resize:vertical; min-height:100px; font-family:'SF Mono','Fira Code',monospace; font-size:11.5px; line-height:1.65; }
+.hint { font-size:11px; color:var(--muted); margin-top:4px; }
+.hint a { color:var(--acc); }
+
+/* ─── BOARDS TOGGLE ─── */
+.board-row { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px; }
+.board-pill { display:flex; align-items:center; gap:6px; padding:6px 12px; border-radius:20px; border:1px solid var(--bdr2); cursor:pointer; font-size:12px; font-weight:500; background:var(--bg); color:var(--muted); transition:all .15s; user-select:none; }
+.board-pill.on { background:rgba(91,141,238,.12); border-color:var(--acc); color:var(--acc); }
+.board-pill .dot { width:6px; height:6px; border-radius:50%; background:var(--bdr2); }
+.board-pill.on .dot { background:var(--acc); }
+
+/* ─── PROGRESS ─── */
+.prog-card { background:var(--card); border:1px solid var(--bdr); border-radius:var(--r); padding:32px; text-align:center; margin-bottom:24px; }
+.prog-title { font-size:16px; font-weight:600; margin-bottom:6px; }
+.prog-sub { color:var(--muted); font-size:13px; margin-bottom:20px; }
+.pbar-w { background:var(--bdr); border-radius:4px; height:5px; overflow:hidden; max-width:360px; margin:0 auto 18px; }
+.pbar-f { height:100%; background:var(--acc); border-radius:4px; transition:width .4s ease; }
+.steps { display:flex; flex-direction:column; gap:7px; align-items:flex-start; max-width:300px; margin:0 auto; }
+.step { display:flex; align-items:center; gap:10px; font-size:13px; color:var(--muted2); }
+.sdot { width:8px; height:8px; border-radius:50%; background:var(--bdr2); flex-shrink:0; }
+.step.done .sdot { background:var(--green); }
+.step.done { color:var(--muted); }
+.step.active .sdot { background:var(--acc); animation:blink 1s infinite; }
+.step.active { color:var(--txt); }
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* ─── SOURCE FILTER ─── */
+.src-filter { display:flex; gap:6px; margin-bottom:20px; flex-wrap:wrap; align-items:center; }
+.src-pill { padding:5px 12px; border-radius:20px; border:1px solid var(--bdr2); background:var(--bg); color:var(--muted); font-size:12px; font-weight:500; cursor:pointer; transition:all .15s; }
+.src-pill.on { background:rgba(91,141,238,.12); border-color:var(--acc); color:var(--acc); }
+.src-pill:hover { color:var(--txt); }
+.src-count { font-size:11px; color:var(--muted2); margin-left:auto; }
+
+/* ─── STATS ─── */
+.stats-row { display:flex; gap:12px; margin-bottom:24px; flex-wrap:wrap; }
+.stat-box { flex:1; min-width:90px; background:var(--card); border:1px solid var(--bdr); border-radius:var(--r); padding:13px 15px; }
+.stat-lbl { font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); }
+.stat-v { font-size:24px; font-weight:700; margin-top:2px; }
+
+/* ─── JOB CARDS ─── */
+.sec-hd { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.07em; color:var(--muted); margin-bottom:12px; }
+.jcard { background:var(--card); border:1px solid var(--bdr); border-radius:var(--r); padding:17px 19px; margin-bottom:11px; transition:border-color .15s; }
+.jcard:hover { border-color:var(--bdr2); }
+.jcard-top { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; }
+.jcard-body { flex:1; min-width:0; }
+.jcard-title { font-size:15px; font-weight:600; }
+.jcard-co { color:var(--muted); font-size:13px; margin-top:2px; }
+.tags { display:flex; flex-wrap:wrap; gap:5px; margin-top:8px; }
+.tag { font-size:11px; padding:2px 8px; border-radius:4px; }
+.tag-src { font-weight:600; }
+.tag-li { background:rgba(10,102,194,.15); color:#4d9de0; border:1px solid rgba(10,102,194,.25); }
+.tag-in { background:rgba(0,114,177,.12); color:#4da6d0; border:1px solid rgba(0,114,177,.2); }
+.tag-gd { background:rgba(77,160,56,.12); color:#5fb54e; border:1px solid rgba(77,160,56,.2); }
+.tag-gray { background:rgba(122,132,153,.1); color:var(--muted); border:1px solid rgba(122,132,153,.15); }
+.tag-warn { background:rgba(234,179,8,.1); color:var(--yellow); border:1px solid rgba(234,179,8,.2); }
+
+.score { flex-shrink:0; min-width:56px; height:56px; display:flex; flex-direction:column; align-items:center; justify-content:center; border-radius:8px; }
+.score-n { font-size:18px; font-weight:700; line-height:1; }
+.score-d { font-size:10px; opacity:.65; }
+.sc-hi { background:rgba(34,197,94,.12); color:var(--green); border:1px solid rgba(34,197,94,.25); }
+.sc-md { background:rgba(234,179,8,.12); color:var(--yellow); border:1px solid rgba(234,179,8,.25); }
+.sc-lo { background:rgba(239,68,68,.1); color:var(--red); border:1px solid rgba(239,68,68,.2); }
+
+.jcard-rsn { margin-top:11px; font-size:13px; color:var(--muted); line-height:1.55; }
+.jcard-hm { margin-top:9px; padding:8px 11px; background:rgba(91,141,238,.05); border:1px solid rgba(91,141,238,.12); border-radius:var(--rs); font-size:12px; color:var(--muted); }
+.jcard-hm strong { color:var(--acc); }
+.hm-str { font-family:'SF Mono','Fira Code',monospace; font-size:11px; background:rgba(0,0,0,.3); padding:2px 6px; border-radius:3px; cursor:pointer; display:inline-block; margin-top:4px; transition:background .15s; }
+.hm-str:hover { background:rgba(91,141,238,.2); }
+.jcard-acts { display:flex; gap:7px; margin-top:13px; }
+
+/* ─── SKIP LIST ─── */
+.skip-tog { display:flex; align-items:center; gap:8px; cursor:pointer; color:var(--muted); font-size:12px; user-select:none; margin:24px 0 11px; transition:color .15s; }
+.skip-tog:hover { color:var(--txt); }
+.skip-caret { font-size:10px; transition:transform .2s; }
+.skip-caret.open { transform:rotate(90deg); }
+.skip-items { display:none; }
+.skip-items.open { display:block; }
+.skip-row { display:flex; justify-content:space-between; align-items:center; gap:12px; background:var(--card); border:1px solid var(--bdr); border-radius:8px; padding:10px 14px; margin-bottom:7px; }
+.skip-name { font-size:13px; font-weight:500; }
+.skip-rsn { font-size:12px; color:var(--muted); margin-top:2px; }
+.score-sm { padding:3px 9px; border-radius:5px; font-size:12px; font-weight:700; }
+
+/* ─── BOARD ERRORS ─── */
+.board-errors { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:16px; }
+.board-err { background:rgba(239,68,68,.08); border:1px solid rgba(239,68,68,.2); border-radius:6px; padding:6px 12px; font-size:12px; color:var(--red); }
+
+/* ─── DRAWER ─── */
+.overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:200; }
+.overlay.open { display:block; }
+.drawer { position:fixed; right:0; top:0; bottom:0; width:460px; max-width:100%; background:var(--surf); border-left:1px solid var(--bdr); padding:28px; overflow-y:auto; z-index:201; transform:translateX(100%); transition:transform .25s ease; }
+.drawer.open { transform:translateX(0); }
+.drawer-title { font-size:16px; font-weight:600; margin-bottom:20px; }
+.drawer-close { position:absolute; top:20px; right:20px; background:none; border:none; color:var(--muted); font-size:20px; cursor:pointer; line-height:1; }
+.drawer-close:hover { color:var(--txt); }
+
+/* ─── GITHUB DEPLOY SECTION ─── */
+.deploy-box { background:var(--card2); border:1px solid var(--bdr); border-radius:var(--r); padding:18px; margin-top:8px; }
+.deploy-box h3 { font-size:13px; font-weight:600; margin-bottom:10px; color:var(--acc); }
+.deploy-steps { list-style:none; counter-reset:dc; }
+.deploy-steps li { counter-increment:dc; display:flex; gap:10px; font-size:12.5px; color:var(--muted); margin-bottom:8px; line-height:1.55; }
+.deploy-steps li::before { content:counter(dc); min-width:20px; height:20px; background:rgba(91,141,238,.15); color:var(--acc); border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; flex-shrink:0; margin-top:1px; }
+.deploy-steps a { color:var(--acc); }
+.code-box { background:var(--bg); border:1px solid var(--bdr2); border-radius:var(--rs); padding:8px 12px; font-family:'SF Mono','Fira Code',monospace; font-size:11px; color:var(--txt); margin:6px 0; }
+
+/* ─── EMPTY ─── */
+.empty { text-align:center; padding:60px 20px; color:var(--muted); }
+.empty-ico { font-size:44px; margin-bottom:12px; }
+.empty-ttl { font-size:16px; font-weight:600; color:var(--txt); margin-bottom:8px; }
+
+/* ─── TOAST ─── */
+.toast { position:fixed; bottom:22px; right:22px; background:var(--card); border:1px solid var(--bdr2); border-radius:8px; padding:11px 16px; font-size:13px; z-index:500; transform:translateY(20px); opacity:0; pointer-events:none; transition:all .25s; max-width:320px; }
+.toast.show { transform:translateY(0); opacity:1; pointer-events:auto; }
+.toast.ok  { border-color:var(--green); color:var(--green); }
+.toast.err { border-color:var(--red); color:var(--red); }
+
+@media(max-width:640px){
+  .hdr,.tab-bar,.main { padding-left:14px; padding-right:14px; }
+  .jcard-top { flex-direction:column-reverse; }
+  .score { flex-direction:row; width:100%; height:auto; padding:5px 10px; gap:5px; }
+  .fg2 { grid-template-columns:1fr; }
+  .stats-row { gap:8px; }
+}
+</style>
+</head>
+<body>
+<div class="toast" id="toast"></div>
+
+<!-- ══════════════════ SETUP ══════════════════ -->
+<div id="setup-screen" style="display:none">
+ <div class="setup-wrap">
+  <div class="setup-card">
+   <div class="setup-ey">One-time setup</div>
+   <div class="setup-title">Daily Job Tracker 🎯</div>
+   <div class="setup-sub">Set this up once. Every time you open this page it auto-scans LinkedIn, Indeed &amp; Glassdoor across 5 job titles and scores results against your resume.</div>
+   <div class="cors-warn">
+    <strong>⚠️ Host this on GitHub Pages first — it takes 3 minutes</strong>
+    API calls won't work when opening this file directly from your desktop (browser CORS restriction). Scroll to "Deploy to GitHub Pages" in Settings after setup, or see the instructions inside the drawer.
+   </div>
+   <div class="fg">
+    <label>Apify API Key</label>
+    <input id="s-apify" type="password" placeholder="apify_api_xxxxxxxx">
+    <div class="hint">Get it free at <a href="https://console.apify.com/account/integrations" target="_blank">console.apify.com</a> → Integrations → Personal API tokens</div>
+   </div>
+   <div class="fg">
+    <label>Anthropic API Key</label>
+    <input id="s-claude" type="password" placeholder="sk-ant-xxxx">
+    <div class="hint">Get it at <a href="https://console.anthropic.com/settings/api-keys" target="_blank">console.anthropic.com</a> · Scoring 20 jobs costs ~$0.02</div>
+   </div>
+   <hr class="divr">
+   <div class="fg2">
+    <div class="fg">
+     <label>Location</label>
+     <input id="s-loc" type="text" value="Irvine, CA">
+    </div>
+    <div class="fg">
+     <label>Days back to search</label>
+     <select id="s-days">
+      <option value="3" selected>Past 3 days</option>
+      <option value="7">Past week</option>
+      <option value="14">Past 2 weeks</option>
+     </select>
+    </div>
+   </div>
+   <div class="fg">
+    <label>Job boards to search</label>
+    <div class="board-row" id="s-boards">
+     <div class="board-pill on" data-board="linkedin"><span class="dot"></span>LinkedIn</div>
+     <div class="board-pill on" data-board="indeed"><span class="dot"></span>Indeed</div>
+     <div class="board-pill on" data-board="glassdoor"><span class="dot"></span>Glassdoor</div>
+    </div>
+    <div class="hint">Handshake &amp; JobRight.ai require login — no public scraper available yet.</div>
+   </div>
+   <div class="fg">
+    <label>Your Resume</label>
+    <textarea id="s-resume" rows="9"></textarea>
+    <div class="hint">Pre-filled from your uploaded resume. Update anytime in Settings.</div>
+   </div>
+   <button class="btn btn-p" onclick="saveSetup()" style="width:100%;justify-content:center;padding:11px;font-size:14px">Save &amp; Start Tracking →</button>
+  </div>
+ </div>
+</div>
+
+<!-- ══════════════════ DASHBOARD ══════════════════ -->
+<div id="dashboard" style="display:none">
+ <header class="hdr">
+  <div style="display:flex;align-items:center;gap:10px">
+   <span class="hdr-logo">🎯 Job Tracker</span>
+   <span class="hdr-meta" id="hdr-meta"></span>
+  </div>
+  <div class="hdr-r">
+   <button class="btn btn-g" id="ref-btn" onclick="refreshActive()">↺ Refresh Tab</button>
+   <button class="btn btn-g" onclick="openDrawer()">⚙ Settings</button>
+  </div>
+ </header>
+ <div class="tab-bar" id="tab-bar"></div>
+ <div class="main">
+  <!-- Progress -->
+  <div class="prog-card" id="prog-card" style="display:none">
+   <div class="prog-title" id="prog-title">Scanning jobs…</div>
+   <div class="prog-sub" id="prog-sub">Starting up</div>
+   <div class="pbar-w"><div class="pbar-f" id="pbar" style="width:0%"></div></div>
+   <div class="steps">
+    <div class="step" id="st1"><span class="sdot"></span><span id="st1-lbl">Scraping job boards</span></div>
+    <div class="step" id="st2"><span class="sdot"></span>Fetching all results</div>
+    <div class="step" id="st3"><span class="sdot"></span>AI resume-fit scoring</div>
+    <div class="step" id="st4"><span class="sdot"></span>Building your apply list</div>
+   </div>
+  </div>
+  <!-- Tab content area -->
+  <div id="tab-content"></div>
+ </div>
+</div>
+
+<!-- ══════════════════ SETTINGS DRAWER ══════════════════ -->
+<div class="overlay" id="overlay" onclick="closeDrawer()"></div>
+<div class="drawer" id="drawer">
+ <button class="drawer-close" onclick="closeDrawer()">✕</button>
+ <div class="drawer-title">⚙ Settings</div>
+ <div class="fg">
+  <label>Apify API Key</label>
+  <input id="d-apify" type="password" placeholder="apify_api_...">
+ </div>
+ <div class="fg">
+  <label>Anthropic API Key</label>
+  <input id="d-claude" type="password" placeholder="sk-ant-...">
+ </div>
+ <hr class="divr">
+ <div class="fg2">
+  <div class="fg">
+   <label>Location</label>
+   <input id="d-loc" type="text">
+  </div>
+  <div class="fg">
+   <label>Days back</label>
+   <select id="d-days">
+    <option value="3">Past 3 days</option>
+    <option value="7">Past week</option>
+    <option value="14">Past 2 weeks</option>
+   </select>
+  </div>
+ </div>
+ <div class="fg">
+  <label>Job boards</label>
+  <div class="board-row" id="d-boards">
+   <div class="board-pill on" data-board="linkedin"><span class="dot"></span>LinkedIn</div>
+   <div class="board-pill on" data-board="indeed"><span class="dot"></span>Indeed</div>
+   <div class="board-pill on" data-board="glassdoor"><span class="dot"></span>Glassdoor</div>
+  </div>
+  <div class="hint">Handshake/JobRight require login auth — no public scraper available.</div>
+ </div>
+ <div class="fg">
+  <label>Resume</label>
+  <textarea id="d-resume" rows="10"></textarea>
+ </div>
+ <div style="display:flex;flex-direction:column;gap:8px">
+  <button class="btn btn-p" onclick="saveDrawer()" style="justify-content:center">Save Settings</button>
+  <button class="btn btn-g" onclick="refreshAll()" style="justify-content:center">🔄 Refresh All Tabs Now</button>
+  <button class="btn btn-d" onclick="nuke()" style="justify-content:center">Reset Everything</button>
+ </div>
+ <hr class="divr" style="margin-top:20px">
+ <div class="deploy-box">
+  <h3>🚀 Deploy to GitHub Pages (fixes CORS error)</h3>
+  <ol class="deploy-steps">
+   <li>Go to <a href="https://github.com/new" target="_blank">github.com/new</a> — create a <strong>public</strong> repo named <code>job-tracker</code></li>
+   <li>Click <strong>uploading an existing file</strong> → drag this HTML file in → rename it <code>index.html</code> → Commit</li>
+   <li>Go to repo <strong>Settings → Pages → Source → Deploy from branch → main → / (root)</strong> → Save</li>
+   <li>Your live URL (visit &amp; bookmark this): <div class="code-box">https://YOUR_USERNAME.github.io/job-tracker</div></li>
+   <li>All API calls now work. Done ✓</li>
+  </ol>
+ </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════
+// CONSTANTS
+// ═══════════════════════════════════════════════
+const K = { CFG:'jt2_cfg', JOBS:'jt2_jobs_', TS:'jt2_ts_' };
+const REFRESH_HRS = 24;
+
+const BOARDS = {
+  linkedin: {
+    id:'linkedin', name:'LinkedIn', tagClass:'tag-li',
+    actor:'curious_coder~linkedin-jobs-scraper',
+    buildInput(q, loc, days) {
+      const tpr = days <= 3 ? 'r259200' : days <= 7 ? 'r604800' : 'r1209600';
+      return {
+        urls:[`https://www.linkedin.com/jobs/search/?keywords=${enc(q)}&location=${enc(loc)}&f_TPR=${tpr}&position=1&pageNum=0`],
+        count:15, scrapeCompany:false
+      };
+    },
+    map(item) {
+      return { title:item.title, company:item.companyName, location:item.location,
+               posted:item.postedAt, link:item.link||item.applyUrl,
+               desc:item.descriptionText, source:'linkedin' };
+    }
+  },
+  indeed: {
+    id:'indeed', name:'Indeed', tagClass:'tag-in',
+    actor:'valig~indeed-jobs-scraper',
+    buildInput(q, loc, days) {
+      const dp = days<=3?'3days':days<=7?'1week':'2weeks';
+      return { title:q, location:loc, limit:15, datePosted:dp, country:'us' };
+    },
+    map(item) {
+      return { title:item.jobTitle||item.title||item.positionName,
+               company:item.company||item.companyName,
+               location:item.location,
+               posted:item.datePosted||item.postedAt||item.date,
+               link:item.jobUrl||item.url||item.applyUrl,
+               desc:item.description||item.jobDescription, source:'indeed' };
+    }
+  },
+  glassdoor: {
+    id:'glassdoor', name:'Glassdoor', tagClass:'tag-gd',
+    actor:'valig~glassdoor-jobs-scraper',
+    buildInput(q, loc, days) {
+      return { keywords:q, location:loc, daysOld:parseInt(days), limit:15 };
+    },
+    map(item) {
+      return { title:item.jobTitle||item.title,
+               company:item.companyName||item.company,
+               location:item.location,
+               posted:item.listingDate||item.postedAt||item.datePosted,
+               link:item.jobLink||item.url||item.applyUrl,
+               desc:item.jobDescription||item.description, source:'glassdoor' };
+    }
+  }
+};
+
+const TABS = [
+  { id:'hda',  label:'Healthcare DA',    icon:'🏥', kw:'Healthcare Data Analyst' },
+  { id:'bi',   label:'BI Analyst',       icon:'📊', kw:'Business Intelligence Analyst' },
+  { id:'da',   label:'Data Analyst',     icon:'🔢', kw:'Data Analyst' },
+  { id:'ba',   label:'Business Analyst', icon:'💼', kw:'Business Analyst' },
+  { id:'aiml', label:'AI / ML',          icon:'🤖', kw:'Data Scientist Machine Learning' },
+];
+
+let activeTabId = TABS[0].id;
+let isRunning   = false;
+
+// ═══════════════════════════════════════════════
+// STORAGE
+// ═══════════════════════════════════════════════
+const enc = encodeURIComponent;
+const load = (k, d=null) => { try { const v=localStorage.getItem(k); return v?JSON.parse(v):d; } catch{ return d; } };
+const save = (k,v) => localStorage.setItem(k, JSON.stringify(v));
+const getCfg = () => load(K.CFG);
+const getJobs = (tabId) => load(K.JOBS+tabId);
+const saveJobs = (tabId, jobs) => save(K.JOBS+tabId, jobs);
+const getTs = (tabId) => load(K.TS+tabId);
+const saveTs = (tabId) => save(K.TS+tabId, Date.now());
+const hoursSince = ts => ts ? (Date.now()-ts)/3600000 : Infinity;
+const fmtTs = ts => { if(!ts)return 'Never'; const d=new Date(ts); return d.toLocaleDateString('en-US',{month:'short',day:'numeric'})+' '+d.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}); };
+const fmtDate = d => { if(!d) return ''; try{ return new Date(d).toLocaleDateString('en-US',{month:'short',day:'numeric'}); }catch{ return d; }};
+const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+// ═══════════════════════════════════════════════
+// TOAST
+// ═══════════════════════════════════════════════
+let _tt;
+function toast(msg, type='ok') {
+  const el=document.getElementById('toast');
+  clearTimeout(_tt);
+  el.textContent=msg; el.className=`toast ${type} show`;
+  _tt=setTimeout(()=>{ el.className='toast'; },3500);
+}
+
+// ═══════════════════════════════════════════════
+// BOARD PILL TOGGLES (setup + drawer)
+// ═══════════════════════════════════════════════
+function initBoardPills(containerId) {
+  document.getElementById(containerId).querySelectorAll('.board-pill').forEach(pill => {
+    pill.addEventListener('click', () => {
+      pill.classList.toggle('on');
+    });
+  });
+}
+function getActiveBoardIds(containerId) {
+  return [...document.getElementById(containerId).querySelectorAll('.board-pill.on')].map(p => p.dataset.board);
+}
+function syncBoardPills(containerId, ids) {
+  document.getElementById(containerId).querySelectorAll('.board-pill').forEach(p => {
+    p.classList.toggle('on', ids.includes(p.dataset.board));
+  });
+}
+
+// ═══════════════════════════════════════════════
+// PROGRESS UI
+// ═══════════════════════════════════════════════
+function prog(pct, msg, step, title) {
+  if(title) document.getElementById('prog-title').textContent = title;
+  document.getElementById('pbar').style.width = pct+'%';
+  document.getElementById('prog-sub').textContent = msg;
+  [1,2,3,4].forEach(i => {
+    const el=document.getElementById(`st${i}`);
+    if(el) el.className='step '+(i<step?'done':i===step?'active':'');
+  });
+}
+function showProg(title) {
+  document.getElementById('prog-card').style.display='block';
+  document.getElementById('tab-content').innerHTML='';
+  document.getElementById('ref-btn').disabled=true;
+  if(title){ document.getElementById('prog-title').textContent=title; }
+}
+function hideProg() {
+  document.getElementById('prog-card').style.display='none';
+  document.getElementById('ref-btn').disabled=false;
+}
+
+// ═══════════════════════════════════════════════
+// TABS
+// ═══════════════════════════════════════════════
+function renderTabBar() {
+  const bar = document.getElementById('tab-bar');
+  bar.innerHTML = TABS.map(t => {
+    const jobs = getJobs(t.id) || [];
+    const hasJobs = jobs.length > 0;
+    const applyCount = jobs.filter(j => !j.skip && (j.score||0)>=6).length;
+    return `<button class="tab-btn${t.id===activeTabId?' active':''}" onclick="switchTab('${t.id}')">
+      ${t.icon} ${t.label}
+      <span class="tab-badge${hasJobs?' has-jobs':''}">${hasJobs?applyCount:'—'}</span>
+    </button>`;
+  }).join('');
+}
+function switchTab(tabId) {
+  activeTabId = tabId;
+  renderTabBar();
+  updateHdrMeta();
+  const jobs = getJobs(tabId);
+  const ts   = getTs(tabId);
+  if (hoursSince(ts) >= REFRESH_HRS) {
+    runPipeline(tabId);
+  } else if (jobs) {
+    renderJobs(jobs);
+  } else {
+    renderEmpty();
+  }
+}
+function updateHdrMeta() {
+  const ts = getTs(activeTabId);
+  const el = document.getElementById('hdr-meta');
+  if(el) el.textContent = ts ? `Updated ${fmtTs(ts)}` : '';
+}
+
+// ═══════════════════════════════════════════════
+// APIFY
+// ═══════════════════════════════════════════════
+async function apifyStart(apiKey, actor, input) {
+  const res = await fetch(`https://api.apify.com/v2/acts/${actor}/runs?token=${apiKey}`, {
+    method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(input)
+  });
+  if(!res.ok) { const t=await res.text(); throw new Error(`${actor} start failed (${res.status}): ${t.slice(0,120)}`); }
+  const d = await res.json();
+  return { runId:d.data.id, datasetId:d.data.defaultDatasetId };
+}
+async function apifyPoll(apiKey, runId, onTick) {
+  for(let i=0;i<60;i++) {
+    await wait(5000);
+    const res = await fetch(`https://api.apify.com/v2/actor-runs/${runId}?token=${apiKey}`);
+    if(!res.ok) throw new Error(`Poll failed (${res.status})`);
+    const status = (await res.json()).data.status;
+    if(status==='SUCCEEDED') return;
+    if(['FAILED','ABORTED','TIMED-OUT'].includes(status)) throw new Error(`Run ${status}`);
+    if(onTick) onTick(i);
+  }
+  throw new Error('Apify polling timed out (>5 min)');
+}
+async function apifyFetch(apiKey, datasetId) {
+  const res = await fetch(`https://api.apify.com/v2/datasets/${datasetId}/items?token=${apiKey}&limit=20`);
+  if(!res.ok) throw new Error(`Dataset fetch failed (${res.status})`);
+  return await res.json();
+}
+
+// ─── scrape one board ───
+async function scrapeBoard(board, cfg, kw, onTick) {
+  const input = board.buildInput(kw, cfg.loc, cfg.days||3);
+  const { runId, datasetId } = await apifyStart(cfg.apify, board.actor, input);
+  await apifyPoll(cfg.apify, runId, onTick);
+  const raw = await apifyFetch(cfg.apify, datasetId);
+  return (raw||[]).map(item => board.map(item)).filter(j => j.title && j.company);
+}
+
+// ═══════════════════════════════════════════════
+// ANTHROPIC SCORING
+// ═══════════════════════════════════════════════
+async function scoreAll(cfg, jobs) {
+  const slim = jobs.map((j,i) => ({
+    i, title:j.title, company:j.company, location:j.location,
+    source:j.source, desc:(j.desc||'').slice(0,600)
+  }));
+
+  const res = await fetch('https://api.anthropic.com/v1/messages',{
+    method:'POST',
+    headers:{
+      'Content-Type':'application/json',
+      'x-api-key':cfg.claude,
+      'anthropic-version':'2023-06-01',
+      'anthropic-dangerous-direct-browser-access':'true'
+    },
+    body:JSON.stringify({
+      model:'claude-sonnet-4-6', max_tokens:4096,
+      messages:[{role:'user',content:`You are a resume-to-job-fit analyst. Score each job for this candidate.
+
+RESUME:
+${cfg.resume}
+
+JOBS (JSON):
+${JSON.stringify(slim)}
+
+Scoring rubric (1–10 integer):
+• Keyword overlap: skills/tools/JD responsibilities found in resume
+• Seniority match: candidate has ~5 years experience (2021–now)
+• Domain relevance: healthcare/public health/BI=high; unrelated=low
+• 4-second recruiter skim: would they shortlist instantly?
+
+Return ONLY a raw JSON array (no markdown, no extra text):
+[{"i":<index>,"score":<1-10>,"reason":"<≤20 words>","hm":"<LinkedIn search string like: \\"Director Data Analytics\\" \\"CompanyName\\" \\"City\\">","stretch":<true if seniority stretch>,"skip":<true if score<6>,"skipReason":"<one line or null>"}]`}]
+    })
+  });
+  if(!res.ok) throw new Error(`Anthropic error (${res.status}): ${(await res.text()).slice(0,120)}`);
+  const d = await res.json();
+  const raw = d.content.map(b=>b.text||'').join('').replace(/```json|```/g,'').trim();
+  return JSON.parse(raw);
+}
+
+// ═══════════════════════════════════════════════
+// PIPELINE
+// ═══════════════════════════════════════════════
+async function runPipeline(tabId) {
+  if(isRunning){ toast('Already running, please wait','err'); return; }
+  const cfg = getCfg();
+  if(!cfg){ toast('Set up your API keys first','err'); return; }
+
+  const tab = TABS.find(t=>t.id===tabId)||TABS[0];
+  const activeBoardIds = cfg.boards||['linkedin','indeed','glassdoor'];
+  const activeBoards   = activeBoardIds.map(id=>BOARDS[id]).filter(Boolean);
+  if(!activeBoards.length){ toast('No job boards selected','err'); return; }
+
+  isRunning = true;
+  showProg(`${tab.icon} Scanning: ${tab.label}`);
+  prog(5,'Starting scrapers…',1,`${tab.icon} Scanning: ${tab.label}`);
+
+  const boardLabel = activeBoards.map(b=>b.name).join(' + ');
+  document.getElementById('st1').querySelector('span:last-child').textContent = `Scraping ${boardLabel}`;
+
+  const errors = {};
+  let allJobs  = [];
+
+  try {
+    // ── Step 1: fire all boards in parallel ──
+    prog(8, `Firing ${activeBoards.length} scrapers in parallel…`, 1);
+
+    const boardRuns = await Promise.allSettled(
+      activeBoards.map(b => apifyStart(cfg.apify, b.actor, b.buildInput(tab.kw, cfg.loc, cfg.days||3)))
+    );
+
+    const running = [];
+    boardRuns.forEach((result, i) => {
+      if(result.status==='fulfilled') running.push({ board:activeBoards[i], ...result.value });
+      else { errors[activeBoards[i].id] = result.reason.message; toast(`${activeBoards[i].name}: ${result.reason.message.slice(0,60)}`, 'err'); }
+    });
+
+    // ── Step 2: poll all running jobs ──
+    prog(15, `Polling ${running.length} scraper(s)…`, 1);
+    let elapsed = 0;
+    await Promise.allSettled(
+      running.map(r => apifyPoll(cfg.apify, r.runId, (i) => {
+        elapsed = Math.max(elapsed, i*5);
+        prog(15+Math.min(elapsed*0.7,40), `Scraping ${boardLabel}… (~${elapsed}s)`, 1);
+      }))
+    );
+
+    // ── Step 3: fetch datasets ──
+    prog(60, 'Fetching results…', 2);
+    const fetchResults = await Promise.allSettled(
+      running.map(r => apifyFetch(cfg.apify, r.datasetId).then(raw =>
+        (raw||[]).map(item=>r.board.map(item)).filter(j=>j.title&&j.company)
+      ))
+    );
+    fetchResults.forEach((result,i) => {
+      if(result.status==='fulfilled') allJobs = allJobs.concat(result.value);
+      else errors[running[i].board.id] = result.reason.message;
+    });
+
+    // dedup by company+title
+    const seen = new Set();
+    allJobs = allJobs.filter(j => {
+      const key = (j.title+j.company).toLowerCase().replace(/\s/g,'');
+      if(seen.has(key)) return false;
+      seen.add(key); return true;
+    });
+
+    if(!allJobs.length) throw new Error('No jobs returned from any board. Try wider date range or different location.');
+
+    // ── Step 4: AI scoring ──
+    prog(72, `Scoring ${allJobs.length} jobs with AI…`, 3);
+    const scores = await scoreAll(cfg, allJobs);
+
+    // ── Step 5: merge ──
+    prog(95,'Building your list…',4);
+    const merged = allJobs.map((j,i) => {
+      const s = scores.find(x=>x.i===i)||{};
+      return { ...j, score:s.score, reason:s.reason, hm:s.hm, stretch:s.stretch, skip:s.skip, skipReason:s.skipReason, _errors:errors };
+    });
+
+    prog(100,'Done!',4);
+    saveJobs(tabId, merged);
+    saveTs(tabId);
+    await wait(350);
+    hideProg();
+    renderJobs(merged, errors);
+    renderTabBar();
+    updateHdrMeta();
+    const applyCount = merged.filter(j=>!j.skip&&(j.score||0)>=6).length;
+    toast(`✓ ${allJobs.length} jobs found — ${applyCount} worth applying to`);
+
+  } catch(err) {
+    hideProg();
+    toast(`Error: ${err.message}`, 'err');
+    console.error(err);
+    const cached = getJobs(tabId);
+    if(cached) renderJobs(cached, errors);
+    else renderEmpty(err.message);
+  }
+
+  isRunning = false;
+}
+
+// ═══════════════════════════════════════════════
+// RENDER
+// ═══════════════════════════════════════════════
+function scClass(n){ return n>=8?'sc-hi':n>=6?'sc-md':'sc-lo'; }
+function scClassSm(n){ return n>=8?'sc-hi':n>=6?'sc-md':'sc-lo'; }
+
+let activeFilter = 'all';
+
+function renderJobs(jobs, errs) {
+  errs = errs||{};
+  const applyJobs = jobs
+    .filter(j => !j.skip && (j.score||0)>=6)
+    .sort((a,b)=> {
+      const td = new Date(b.posted||0)-new Date(a.posted||0);
+      return td!==0?td:(b.score||0)-(a.score||0);
+    });
+  const skipJobs = jobs.filter(j => j.skip||(j.score||0)<6);
+
+  const sources = [...new Set(jobs.map(j=>j.source))];
+
+  let html = '';
+
+  // Board errors banner
+  const errList = Object.entries(errs);
+  if(errList.length) {
+    html += `<div class="board-errors">${errList.map(([k,v])=>`<div class="board-err">⚠ ${BOARDS[k]?.name||k}: ${esc(v.slice(0,80))}</div>`).join('')}</div>`;
+  }
+
+  // Stats
+  html += `<div class="stats-row">
+    <div class="stat-box"><div class="stat-lbl">Total found</div><div class="stat-v">${jobs.length}</div></div>
+    <div class="stat-box"><div class="stat-lbl">Apply now</div><div class="stat-v" style="color:var(--green)">${applyJobs.length}</div></div>
+    <div class="stat-box"><div class="stat-lbl">Stretch ⚠️</div><div class="stat-v" style="color:var(--yellow)">${applyJobs.filter(j=>j.stretch).length}</div></div>
+    <div class="stat-box"><div class="stat-lbl">Skip</div><div class="stat-v" style="color:var(--muted)">${skipJobs.length}</div></div>
+  </div>`;
+
+  // Source filter pills
+  if(sources.length > 1) {
+    html += `<div class="src-filter">
+      <span class="src-pill${activeFilter==='all'?' on':''}" onclick="filterSrc('all')">All boards</span>
+      ${sources.map(s=>`<span class="src-pill${activeFilter===s?' on':''}" onclick="filterSrc('${s}')">${BOARDS[s]?.name||s}</span>`).join('')}
+      <span class="src-count" id="src-count">${applyJobs.length} to apply</span>
+    </div>`;
+  }
+
+  // Apply cards
+  html += `<div class="sec-hd">✅ Apply to these</div><div id="apply-list">`;
+  const filteredApply = applyJobs.filter(j=> activeFilter==='all'||j.source===activeFilter);
+  if(!filteredApply.length) {
+    html += `<div style="color:var(--muted);padding:16px 0">No strong matches${activeFilter!=='all'?' on '+BOARDS[activeFilter]?.name:''}. Try Refresh or different search.</div>`;
+  } else {
+    html += filteredApply.map(j=>`
+    <div class="jcard">
+      <div class="jcard-top">
+        <div class="jcard-body">
+          <div class="jcard-title">${esc(j.title||'Role')}</div>
+          <div class="jcard-co">${esc(j.company||'')}</div>
+          <div class="tags">
+            <span class="tag tag-src ${BOARDS[j.source]?.tagClass||'tag-gray'}">${BOARDS[j.source]?.name||j.source}</span>
+            <span class="tag tag-gray">📍 ${esc(j.location||'')}</span>
+            <span class="tag tag-gray">📅 ${fmtDate(j.posted)}</span>
+            ${j.stretch?'<span class="tag tag-warn">⚠️ Stretch</span>':''}
+          </div>
+        </div>
+        <div class="score ${scClass(j.score||0)}">
+          <div class="score-n">${j.score||'?'}</div>
+          <div class="score-d">/10</div>
+        </div>
+      </div>
+      ${j.reason?`<div class="jcard-rsn">💡 ${esc(j.reason)}</div>`:''}
+      ${j.hm?`<div class="jcard-hm"><strong>🔍 Find hiring manager:</strong><br><span class="hm-str" onclick="copyHM(this)" title="Click to copy">${esc(j.hm)}</span></div>`:''}
+      <div class="jcard-acts">
+        ${j.link?`<a href="${esc(j.link)}" target="_blank" class="btn btn-p" style="font-size:13px">Apply →</a>`:'<span style="color:var(--muted);font-size:12px">No direct link</span>'}
+      </div>
+    </div>`).join('');
+  }
+  html += `</div>`;
+
+  // Skip list
+  const filteredSkip = skipJobs.filter(j=> activeFilter==='all'||j.source===activeFilter);
+  if(filteredSkip.length) {
+    html += `<div class="skip-tog" onclick="toggleSkip()">
+      <span class="skip-caret" id="skip-caret">▶</span>
+      <span id="skip-label">Show ${filteredSkip.length} jobs to skip</span>
+    </div>
+    <div class="skip-items" id="skip-items">
+      ${filteredSkip.map(j=>`
+      <div class="skip-row">
+        <div>
+          <div class="skip-name">${esc(j.title||'')} — ${esc(j.company||'')} <span class="tag tag-src ${BOARDS[j.source]?.tagClass||'tag-gray'}" style="font-size:10px;padding:1px 6px">${BOARDS[j.source]?.name||j.source}</span></div>
+          <div class="skip-rsn">${esc(j.skipReason||`Score: ${j.score||0}/10`)}</div>
+        </div>
+        <div class="score-sm ${scClassSm(j.score||0)}">${j.score||0}/10</div>
+      </div>`).join('')}
+    </div>`;
+  }
+
+  document.getElementById('tab-content').innerHTML = html;
+}
+
+function renderEmpty(msg) {
+  document.getElementById('tab-content').innerHTML = `
+    <div class="empty">
+      <div class="empty-ico">📋</div>
+      <div class="empty-ttl">No results yet</div>
+      <div>${msg||'Click Refresh Tab to scan LinkedIn, Indeed &amp; Glassdoor.'}</div>
+    </div>`;
+}
+
+function filterSrc(src) {
+  activeFilter = src;
+  const jobs = getJobs(activeTabId);
+  if(jobs) renderJobs(jobs);
+}
+
+function toggleSkip() {
+  const items=document.getElementById('skip-items');
+  const caret=document.getElementById('skip-caret');
+  if(!items) return;
+  const open=items.classList.toggle('open');
+  caret.classList.toggle('open',open);
+  document.getElementById('skip-label').textContent = open ? 'Hide skipped jobs' : `Show ${items.children.length} jobs to skip`;
+}
+
+function copyHM(el) {
+  const text=el.textContent;
+  navigator.clipboard.writeText(text).then(()=>toast('Copied!')).catch(()=>{
+    const ta=document.createElement('textarea'); ta.value=text;
+    document.body.appendChild(ta); ta.select();
+    document.execCommand('copy'); document.body.removeChild(ta);
+    toast('Copied!');
+  });
+}
+
+// ═══════════════════════════════════════════════
+// SETUP
+// ═══════════════════════════════════════════════
+function saveSetup() {
+  const apify = document.getElementById('s-apify').value.trim();
+  const claude= document.getElementById('s-claude').value.trim();
+  const loc   = document.getElementById('s-loc').value.trim()||'Irvine, CA';
+  const days  = document.getElementById('s-days').value;
+  const resume= document.getElementById('s-resume').value.trim()||DEFAULT_RESUME;
+  const boards= getActiveBoardIds('s-boards');
+  if(!apify||!claude){ toast('Both API keys are required','err'); return; }
+  if(!boards.length){ toast('Select at least one job board','err'); return; }
+  save(K.CFG,{apify,claude,loc,days,resume,boards});
+  document.getElementById('setup-screen').style.display='none';
+  document.getElementById('dashboard').style.display='block';
+  initDashboard();
+  runPipeline(activeTabId);
+}
+
+// ═══════════════════════════════════════════════
+// DRAWER
+// ═══════════════════════════════════════════════
+function openDrawer() {
+  const cfg=getCfg()||{};
+  document.getElementById('d-apify').value = cfg.apify||'';
+  document.getElementById('d-claude').value= cfg.claude||'';
+  document.getElementById('d-loc').value   = cfg.loc||'Irvine, CA';
+  document.getElementById('d-days').value  = cfg.days||'3';
+  document.getElementById('d-resume').value= cfg.resume||DEFAULT_RESUME;
+  syncBoardPills('d-boards', cfg.boards||['linkedin','indeed','glassdoor']);
+  document.getElementById('overlay').classList.add('open');
+  document.getElementById('drawer').classList.add('open');
+}
+function closeDrawer() {
+  document.getElementById('overlay').classList.remove('open');
+  document.getElementById('drawer').classList.remove('open');
+}
+function saveDrawer() {
+  const cfg={
+    apify : document.getElementById('d-apify').value.trim(),
+    claude: document.getElementById('d-claude').value.trim(),
+    loc   : document.getElementById('d-loc').value.trim()||'Irvine, CA',
+    days  : document.getElementById('d-days').value,
+    resume: document.getElementById('d-resume').value.trim()||DEFAULT_RESUME,
+    boards: getActiveBoardIds('d-boards'),
+  };
+  if(!cfg.apify||!cfg.claude){ toast('Both API keys required','err'); return; }
+  save(K.CFG,cfg); closeDrawer(); toast('Settings saved ✓');
+}
+async function refreshAll() {
+  closeDrawer();
+  for(const t of TABS) {
+    localStorage.removeItem(K.JOBS+t.id);
+    localStorage.removeItem(K.TS+t.id);
+  }
+  await runPipeline(activeTabId);
+  toast('All tabs refreshed ✓');
+}
+function refreshActive() { runPipeline(activeTabId); }
+function nuke() {
+  if(!confirm('Reset everything? Clears API keys, resume, and all cached results.')) return;
+  localStorage.clear(); location.reload();
+}
+
+// ═══════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════
+function initDashboard() {
+  renderTabBar();
+  updateHdrMeta();
+}
+
+const wait = ms => new Promise(r=>setTimeout(r,ms));
+
+const DEFAULT_RESUME = `YASH GAIKWAD
+Irvine, CA | yashvgaikwad9@gmail.com
+
+Business Intelligence Analyst – Pima County Health Department | Jan 2026–Present
+• Architected real-time alerting system for overdose response; linked 400+ at-risk individuals
+• Python ETL pipelines standardizing EHRs across 6+ schemas; automated CDC reporting in Snowflake
+• Snowflake validation logic cutting data integrity errors 75%; ArcGIS mapping of 35+ high-risk clusters
+• Qlik dashboards with role-based access across 8+ datasets in REDCap & Survey123
+
+Data Analyst – Community Dreams Foundation | Feb 2025–Dec 2025
+• A/B tests raising user retention 25%; Power BI (DAX/Power Query) cutting manual reporting 40%
+• SQL anomaly monitoring; Python ML models (supervised, time-series); 90% error-free UAT
+
+Data Analyst – Capgemini | Sep 2021–Jun 2023
+• ETL pipelines: Oracle→API→MuleSoft; automated 70% of workflows; 20+ Power BI dashboards
+• SQL Server optimization (CTEs, triggers, stored procs); fraud detection across 1B+ records +40%
+• Databricks scenario modeling; stakeholder workshops saving $150K in rework costs
+
+Skills: Python · SQL · Power BI · Tableau · Qlik · Snowflake · Alteryx · dbt · Azure · AWS · GCP
+       Epic EHR · REDCap · ArcGIS · XGBoost · LangChain · Salesforce · MongoDB
+Education: M.S. Business Analytics, UMass Amherst, GPA 4.0, Dec 2024`;
+
+window.addEventListener('load', () => {
+  // init board pill toggles
+  initBoardPills('s-boards');
+  initBoardPills('d-boards');
+
+  const cfg = getCfg();
+  if(!cfg) {
+    document.getElementById('s-resume').value = DEFAULT_RESUME;
+    document.getElementById('setup-screen').style.display='block';
+    return;
+  }
+
+  document.getElementById('dashboard').style.display='block';
+  initDashboard();
+
+  const jobs = getJobs(activeTabId);
+  const ts   = getTs(activeTabId);
+
+  if(hoursSince(ts) >= REFRESH_HRS) {
+    runPipeline(activeTabId);
+  } else if(jobs) {
+    renderJobs(jobs);
+  } else {
+    renderEmpty();
+  }
+});
+</script>
+</body>
+</html>
