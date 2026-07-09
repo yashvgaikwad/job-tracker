@@ -337,7 +337,7 @@ const REFRESH_HRS = 24;
 // After deploying (see DEPLOY.md), paste the URL Wrangler gives you here.
 const WORKER_URL = 'https://worker.yashvgaikwad99.workers.dev/';
 // Optional: only needed if you set an APP_SECRET on the Worker too.
-const APP_SECRET = 'yash';
+const APP_SECRET = '';
 function workerHeaders() {
   const h = { 'Content-Type':'application/json' };
   if (APP_SECRET) h['X-App-Secret'] = APP_SECRET;
