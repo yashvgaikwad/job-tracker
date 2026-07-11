@@ -352,8 +352,8 @@ const BOARDS = {
       const d = parseInt(days);
       const tpr = d <= 1 ? 'r86400' : d <= 3 ? 'r259200' : d <= 7 ? 'r604800' : 'r1209600';
       return {
-        urls:[`https://www.linkedin.com/jobs/search/?keywords=${enc(q)}&location=${enc(loc)}&f_TPR=${tpr}&position=1&pageNum=0`],
-        count:15, scrapeCompany:false
+        urls:[`https://www.linkedin.com/jobs/search/?keywords=${enc('"'+q+'"')}&location=${enc(loc)}&f_TPR=${tpr}&position=1&pageNum=0`],
+        count:25, scrapeCompany:false
       };
     },
     map(item) {
@@ -368,7 +368,7 @@ const BOARDS = {
     buildInput(q, loc, days) {
       const d = parseInt(days);
       const dp = d<=1?'1':d<=3?'3days':d<=7?'1week':'2weeks';
-      return { title:q, location:loc, limit:15, datePosted:dp, country:'us' };
+      return { title:q, location:loc, limit:25, datePosted:dp, country:'us' };
     },
     map(item) {
       return { title:item.jobTitle||item.title||item.positionName,
@@ -383,7 +383,7 @@ const BOARDS = {
     id:'glassdoor', name:'Glassdoor', tagClass:'tag-gd',
     actor:'valig~glassdoor-jobs-scraper',
     buildInput(q, loc, days) {
-      return { keywords:q, location:loc, daysOld:parseInt(days), limit:15 };
+      return { keywords:q, location:loc, daysOld:parseInt(days), limit:25 };
     },
     map(item) {
       return { title:item.jobTitle||item.title,
@@ -401,7 +401,6 @@ const TABS = [
   { id:'bi',   label:'BI Analyst',       icon:'📊', kw:'Business Intelligence Analyst' },
   { id:'da',   label:'Data Analyst',     icon:'🔢', kw:'Data Analyst' },
   { id:'ba',   label:'Business Analyst', icon:'💼', kw:'Business Analyst' },
-  { id:'aiml', label:'AI / ML',          icon:'🤖', kw:'Data Scientist Machine Learning' },
 ];
 
 let activeTabId = TABS[0].id;
@@ -496,13 +495,10 @@ function switchTab(tabId) {
   renderTabBar();
   updateHdrMeta();
   const jobs = getJobs(tabId);
-  const ts   = getTs(tabId);
-  if (hoursSince(ts) >= REFRESH_HRS) {
-    runPipeline(tabId);
-  } else if (jobs) {
+  if (jobs) {
     renderJobs(jobs);
   } else {
-    renderEmpty();
+    runPipeline(tabId);
   }
 }
 function updateHdrMeta() {
@@ -581,19 +577,23 @@ async function runPipeline(tabId) {
   const activeBoards   = activeBoardIds.map(id=>BOARDS[id]).filter(Boolean);
   if(!activeBoards.length){ toast('No job boards selected','err'); return; }
 
+  // Only touch the shared progress/job-list UI while this tab is the one being viewed.
+  const isActive = () => tabId === activeTabId;
+  const p = (...args) => { if(isActive()) prog(...args); };
+
   isRunning = true;
-  showProg(`${tab.icon} Scanning: ${tab.label}`);
-  prog(5,'Starting scrapers…',1,`${tab.icon} Scanning: ${tab.label}`);
+  if(isActive()) showProg(`${tab.icon} Scanning: ${tab.label}`);
+  p(5,'Starting scrapers…',1,`${tab.icon} Scanning: ${tab.label}`);
 
   const boardLabel = activeBoards.map(b=>b.name).join(' + ');
-  document.getElementById('st1').querySelector('span:last-child').textContent = `Scraping ${boardLabel}`;
+  if(isActive()) document.getElementById('st1').querySelector('span:last-child').textContent = `Scraping ${boardLabel}`;
 
   const errors = {};
   let allJobs  = [];
 
   try {
     // ── Step 1: fire all boards in parallel ──
-    prog(8, `Firing ${activeBoards.length} scrapers in parallel…`, 1);
+    p(8, `Firing ${activeBoards.length} scrapers in parallel…`, 1);
 
     const boardRuns = await Promise.allSettled(
       activeBoards.map(b => apifyStart(b.actor, b.buildInput(tab.kw, cfg.loc, cfg.days||3)))
@@ -606,17 +606,17 @@ async function runPipeline(tabId) {
     });
 
     // ── Step 2: poll all running jobs ──
-    prog(15, `Polling ${running.length} scraper(s)…`, 1);
+    p(15, `Polling ${running.length} scraper(s)…`, 1);
     let elapsed = 0;
     await Promise.allSettled(
       running.map(r => apifyPoll(r.runId, (i) => {
         elapsed = Math.max(elapsed, i*5);
-        prog(15+Math.min(elapsed*0.7,40), `Scraping ${boardLabel}… (~${elapsed}s)`, 1);
+        p(15+Math.min(elapsed*0.7,40), `Scraping ${boardLabel}… (~${elapsed}s)`, 1);
       }))
     );
 
     // ── Step 3: fetch datasets ──
-    prog(60, 'Fetching results…', 2);
+    p(60, 'Fetching results…', 2);
     const fetchResults = await Promise.allSettled(
       running.map(r => apifyFetch(r.datasetId).then(raw =>
         (raw||[]).map(item=>r.board.map(item)).filter(j=>j.title&&j.company)
@@ -638,34 +638,40 @@ async function runPipeline(tabId) {
     if(!allJobs.length) throw new Error('No jobs returned from any board. Try wider date range or different location.');
 
     // ── Step 4: AI scoring ──
-    prog(72, `Scoring ${allJobs.length} jobs with AI…`, 3);
+    p(72, `Scoring ${allJobs.length} jobs with AI…`, 3);
     const scores = await scoreAll(cfg, allJobs);
 
     // ── Step 5: merge ──
-    prog(95,'Building your list…',4);
+    p(95,'Building your list…',4);
     const merged = allJobs.map((j,i) => {
       const s = scores.find(x=>x.i===i)||{};
       return { ...j, score:s.score, reason:s.reason, hm:s.hm, stretch:s.stretch, skip:s.skip, skipReason:s.skipReason, _errors:errors };
     });
 
-    prog(100,'Done!',4);
+    p(100,'Done!',4);
     saveJobs(tabId, merged);
     saveTs(tabId);
     await wait(350);
-    hideProg();
-    renderJobs(merged, errors);
-    renderTabBar();
-    updateHdrMeta();
+    renderTabBar(); // badge counts update regardless of which tab is active
+    if(isActive()) {
+      hideProg();
+      renderJobs(merged, errors);
+      updateHdrMeta();
+    }
     const applyCount = merged.filter(j=>!j.skip&&(j.score||0)>=6).length;
-    toast(`✓ ${allJobs.length} jobs found — ${applyCount} worth applying to`);
+    toast(`✓ ${tab.label}: ${allJobs.length} jobs found — ${applyCount} worth applying to`);
 
   } catch(err) {
-    hideProg();
-    toast(`Error: ${err.message}`, 'err');
+    if(isActive()) {
+      hideProg();
+      toast(`Error: ${err.message}`, 'err');
+      const cached = getJobs(tabId);
+      if(cached) renderJobs(cached, errors);
+      else renderEmpty(err.message);
+    } else {
+      toast(`${tab.label}: ${err.message}`, 'err');
+    }
     console.error(err);
-    const cached = getJobs(tabId);
-    if(cached) renderJobs(cached, errors);
-    else renderEmpty(err.message);
   }
 
   isRunning = false;
